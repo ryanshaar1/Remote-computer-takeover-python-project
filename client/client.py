@@ -2,10 +2,10 @@ import socket
 import threading
 import json
 import time
-from PIL import ImageGrab as image  # This should be used to capture screenshots
+from PIL import ImageGrab as image  # For capturing screenshots
 import io
-import keyboard  # This is for capturing keyboard events
-import mouse  # This is for capturing mouse events
+import keyboard  # For capturing keyboard events
+from pynput import mouse  # For capturing mouse events
 import struct
 
 def send_msg(sock, msg):
@@ -17,14 +17,9 @@ def send_msg(sock, msg):
     except Exception as e:
         print(f"Error sending message: {e}")
 
-
-def send_screenshots():
-    while True:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.connect(("127.0.0.1", 5003))
-            print("Connected to server for screenshots")
-            
+def send_screenshots(sock):
+    try:
+        while True:
             screenshot = image.grab(bbox=(0, 0, 1920, 1080))
             screenshot_bytes = io.BytesIO()
             screenshot.save(screenshot_bytes, format='JPEG')
@@ -36,14 +31,25 @@ def send_screenshots():
             for i in range(0, len(screenshot_data), chunk_size):
                 sock.send(screenshot_data[i:i+chunk_size])
             
-            time.sleep(0.05)
-        except socket.error as e:
-            print(f"Socket error sending screenshots: {e}")
-        except Exception as e:
-            print(f"Error sending screenshots: {e}")
-        finally:
-            sock.close()  # Ensure the socket is closed
-            print("Screenshot connection closed")
+            time.sleep(0.1)
+    except socket.error as e:
+        print(f"Socket error sending screenshots: {e}")
+    except Exception as e:
+        print(f"Error sending screenshots: {e}")
+    finally:
+        sock.close()  # Ensure the socket is closed
+        print("Screenshot connection closed")
+
+def start_screenshot_thread():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.connect(("127.0.0.1", 5003))
+        print("Connected to server for screenshots")
+        send_screenshots(sock)
+    except Exception as e:
+        print(f"Error connecting to server for screenshots: {e}")
+    finally:
+        sock.close()
 
 def send_messages():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -76,44 +82,46 @@ def send_messages():
         sock.close()  # Ensure the socket is closed
         print("Keyboard connection closed")
 
-def listener_mouse():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+def on_move(x, y):
     try:
-        sock.connect(("127.0.0.1", 5003))
-        send_msg(sock, json.dumps({"socket_type": "mouse"}))
-        print("Connected to server for mouse")
-
-        def on_move(x, y):
-            try:
-                send_msg(sock, f"move,{x},{y}")
-            except Exception as e:
-                print(f"Error sending mouse move: {e}")
-
-        def on_click(x, y, button, pressed):
-            if pressed:
-                try:
-                    send_msg(sock, f"click,{x},{y}")
-                except Exception as e:
-                    print(f"Error sending mouse click: {e}")
-
-        mouse.on_move(on_move)
-        mouse.on_click(on_click)
-        while True:
-            time.sleep(0.1)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(("127.0.0.1", 5002))  # Connect to mouse server port
+        send_msg(sock, f"move,{x},{y}")
     except Exception as e:
-        print(f"Error connecting to server for mouse: {e}")
+        print(f"Error sending mouse move: {e}")
     finally:
-        sock.close()  # Ensure the socket is closed
-        print("Mouse connection closed")
+        sock.close()
 
-screenshot_thread = threading.Thread(target=send_screenshots)
+def on_click(x, y, button, pressed):
+    if pressed:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect(("127.0.0.1", 5002))  # Connect to mouse server port
+            send_msg(sock, f"click,{x},{y},{button.name},{pressed}")
+        except Exception as e:
+            print(f"Error sending mouse click: {e}")
+        finally:
+            sock.close()
+
+def listener_mouse():
+    try:
+        with mouse.Listener(on_move=on_move, on_click=on_click) as listener:
+            listener.join()
+    except Exception as e:
+        print(f"Error handling mouse events: {e}")
+    finally:
+        print("Mouse listener stopped")
+
+# Start threads for each functionality
+screenshot_thread = threading.Thread(target=start_screenshot_thread)
 message_thread = threading.Thread(target=send_messages)
-listener_thread = threading.Thread(target=listener_mouse)
+mouse_listener_thread = threading.Thread(target=listener_mouse)
 
 screenshot_thread.start()
 message_thread.start()
-listener_thread.start()
+mouse_listener_thread.start()
 
+# Join threads to wait for them to finish
 screenshot_thread.join()
 message_thread.join()
-listener_thread.join()
+mouse_listener_thread.join()

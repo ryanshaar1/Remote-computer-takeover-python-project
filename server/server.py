@@ -1,3 +1,4 @@
+# Server Code
 import socket
 import threading
 import json
@@ -57,12 +58,12 @@ def handle_received_mouse(connection):
             mouse_data = msg.decode('utf-8')
             if mouse_data:
                 print(f"Received mouse data: {mouse_data}")
-                action, x, y = mouse_data.split(',')
+                action, x, y, button, pressed = mouse_data.split(',')
                 x, y = int(x), int(y)
                 if action == "move":
                     mouse.move(x, y)
                 elif action == "click":
-                    mouse.click()
+                    mouse.click(button)
     except Exception as e:
         print(f"Error handling mouse: {e}")
     finally:
@@ -78,8 +79,8 @@ def handle_received_screenshot(connection):
             screenshot_size = int(msg.decode('utf-8'))
             screenshot_data = recvall(connection, screenshot_size)
 
+            # Load the screenshot without displaying it
             received_screenshot = Image.open(io.BytesIO(screenshot_data))
-            received_screenshot.show()
 
             received_message = recv_msg(connection)
             if received_message:
