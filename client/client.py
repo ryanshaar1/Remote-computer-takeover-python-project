@@ -6,21 +6,23 @@ from PIL import ImageGrab as image  # This should be used to capture screenshots
 import io
 import keyboard  # This is for capturing keyboard events
 import mouse  # This is for capturing mouse events
+import struct
 
 def send_msg(sock, msg):
     try:
         msg = msg.encode('utf-8') if isinstance(msg, str) else msg
-        msg = len(msg).to_bytes(4, byteorder='big') + msg
+        msg = struct.pack('>I', len(msg)) + msg  # Prefix with message length
         sock.sendall(msg)
         print(f"Sent message: {msg}")  # Debug print
     except Exception as e:
         print(f"Error sending message: {e}")
 
+
 def send_screenshots():
     while True:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            sock.connect(("127.0.0.1", 5000))
+            sock.connect(("127.0.0.1", 5003))
             print("Connected to server for screenshots")
             
             screenshot = image.grab(bbox=(0, 0, 1920, 1080))
@@ -35,6 +37,8 @@ def send_screenshots():
                 sock.send(screenshot_data[i:i+chunk_size])
             
             time.sleep(0.05)
+        except socket.error as e:
+            print(f"Socket error sending screenshots: {e}")
         except Exception as e:
             print(f"Error sending screenshots: {e}")
         finally:
@@ -44,7 +48,7 @@ def send_screenshots():
 def send_messages():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.connect(("127.0.0.1", 5000))
+        sock.connect(("127.0.0.1", 5001))
         send_msg(sock, json.dumps({"socket_type": "keyboard"}))
         print("Connected to server for keyboard")
         
@@ -75,7 +79,7 @@ def send_messages():
 def listener_mouse():
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.connect(("127.0.0.1", 5000))
+        sock.connect(("127.0.0.1", 5003))
         send_msg(sock, json.dumps({"socket_type": "mouse"}))
         print("Connected to server for mouse")
 
@@ -92,8 +96,8 @@ def listener_mouse():
                 except Exception as e:
                     print(f"Error sending mouse click: {e}")
 
-        mouse.hook(on_move)
-        mouse.hook(on_click)
+        mouse.on_move(on_move)
+        mouse.on_click(on_click)
         while True:
             time.sleep(0.1)
     except Exception as e:
