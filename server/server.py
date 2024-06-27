@@ -1,4 +1,3 @@
-# Server Code
 import socket
 import threading
 import json
@@ -58,17 +57,34 @@ def handle_received_mouse(connection):
             mouse_data = msg.decode('utf-8')
             if mouse_data:
                 print(f"Received mouse data: {mouse_data}")
-                action, x, y, button, pressed = mouse_data.split(',')
-                x, y = int(x), int(y)
-                if action == "move":
-                    mouse.move(x, y)
-                elif action == "click":
-                    mouse.click(button)
+                # Parse mouse_data properly
+                try:
+                    parts = mouse_data.split(',')
+                    action = parts[0]
+                    if action == "move":
+                        x = int(parts[1])
+                        y = int(parts[2])
+                        mouse.move(x, y)
+                    elif action == "click":
+                        x = int(parts[1])
+                        y = int(parts[2])
+                        button = parts[3]
+                        pressed = bool(parts[4])
+                        mouse.click(x, y, button, pressed)
+                    else:
+                        print(f"Unknown action: {action}")
+                except IndexError:
+                    print("Incomplete mouse data received")
+                except ValueError as ve:
+                    print(f"Error parsing mouse data: {ve}")
+                except Exception as e:
+                    print(f"Error handling mouse action: {e}")
     except Exception as e:
         print(f"Error handling mouse: {e}")
     finally:
         connection.close()
         print("Mouse connection closed")
+
 
 def handle_received_screenshot(connection):
     try:
