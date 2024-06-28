@@ -1,11 +1,12 @@
 import socket
 import threading
-import json
 from PIL import Image
 import io
+import struct
+import cv2
+import numpy as np
 import keyboard
 import mouse
-import struct
 
 def recv_msg(sock):
     try:
@@ -57,7 +58,6 @@ def handle_received_mouse(connection):
             mouse_data = msg.decode('utf-8')
             if mouse_data:
                 print(f"Received mouse data: {mouse_data}")
-                # Parse mouse_data properly
                 try:
                     parts = mouse_data.split(',')
                     action = parts[0]
@@ -69,42 +69,61 @@ def handle_received_mouse(connection):
                         x = int(parts[1])
                         y = int(parts[2])
                         button = parts[3]
-                        pressed = bool(parts[4])
-                        mouse.click(x, y, button, pressed)
+                        pressed = parts[4] == 'True'
+                        if pressed:
+                            mouse.press(button)
+                        else:
+                            mouse.release(button)
                     else:
                         print(f"Unknown action: {action}")
-                except IndexError:
-                    print("Incomplete mouse data received")
-                except ValueError as ve:
-                    print(f"Error parsing mouse data: {ve}")
-                except Exception as e:
-                    print(f"Error handling mouse action: {e}")
+                except (IndexError, ValueError) as e:
+                    print(f"Error parsing mouse data: {e}")
     except Exception as e:
         print(f"Error handling mouse: {e}")
     finally:
         connection.close()
         print("Mouse connection closed")
 
-
 def handle_received_screenshot(connection):
+    # Create an Empty window
+    cv2.namedWindow("Live", cv2.WINDOW_NORMAL)
+    # Resize this window
+    cv2.resizeWindow("Live", 480, 270)
+    
     try:
         while True:
             msg = recv_msg(connection)
             if msg is None:
                 break
             screenshot_size = int(msg.decode('utf-8'))
+            print(f"Expecting screenshot of size: {screenshot_size}")
+            
             screenshot_data = recvall(connection, screenshot_size)
+            if screenshot_data is None:
+                print("Did not receive complete screenshot data")
+                continue
+            
+            print(f"Received screenshot of size: {len(screenshot_data)}")
+            # Convert the received bytes to numpy array
+            frame = np.frombuffer(screenshot_data, dtype=np.uint8)
+            # Decode the image
+            frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
+            if frame is None:
+                print("Error decoding image")
+                continue
 
-            # Load the screenshot without displaying it
-            received_screenshot = Image.open(io.BytesIO(screenshot_data))
+            # Display the frame
+            cv2.imshow('Live', frame)
 
-            received_message = recv_msg(connection)
-            if received_message:
-                print("Received message from client: ", received_message.decode())
+            # Wait for a short period to display the image
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
     except Exception as e:
         print(f"Error handling screenshot: {e}")
     finally:
         connection.close()
+        cv2.destroyAllWindows()
         print("Screenshot connection closed")
 
 # Define ports for each functionality
