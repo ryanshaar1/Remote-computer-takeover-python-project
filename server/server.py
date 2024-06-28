@@ -1,12 +1,9 @@
 import socket
 import threading
-from PIL import Image
+import tkinter as tk
+from PIL import Image, ImageTk
 import io
 import struct
-import cv2
-import numpy as np
-import keyboard
-import mouse
 
 def recv_msg(sock):
     try:
@@ -42,7 +39,7 @@ def handle_received_keyboard(connection):
             key_pressed = msg.decode('utf-8')
             if key_pressed:
                 print(f"Received key: {key_pressed}")
-                keyboard.press_and_release(key_pressed)
+                # Handle key press here
     except Exception as e:
         print(f"Error handling keyboard: {e}")
     finally:
@@ -58,26 +55,7 @@ def handle_received_mouse(connection):
             mouse_data = msg.decode('utf-8')
             if mouse_data:
                 print(f"Received mouse data: {mouse_data}")
-                try:
-                    parts = mouse_data.split(',')
-                    action = parts[0]
-                    if action == "move":
-                        x = int(parts[1])
-                        y = int(parts[2])
-                        mouse.move(x, y)
-                    elif action == "click":
-                        x = int(parts[1])
-                        y = int(parts[2])
-                        button = parts[3]
-                        pressed = parts[4] == 'True'
-                        if pressed:
-                            mouse.press(button)
-                        else:
-                            mouse.release(button)
-                    else:
-                        print(f"Unknown action: {action}")
-                except (IndexError, ValueError) as e:
-                    print(f"Error parsing mouse data: {e}")
+                # Handle mouse action here
     except Exception as e:
         print(f"Error handling mouse: {e}")
     finally:
@@ -85,12 +63,13 @@ def handle_received_mouse(connection):
         print("Mouse connection closed")
 
 def handle_received_screenshot(connection):
-    # Create an Empty window
-    cv2.namedWindow("Live", cv2.WINDOW_NORMAL)
-    # Resize this window
-    cv2.resizeWindow("Live", 480, 270)
-    
     try:
+        root = tk.Tk()
+        root.title("Live Screen")
+        
+        label = tk.Label(root)
+        label.pack()
+
         while True:
             msg = recv_msg(connection)
             if msg is None:
@@ -104,26 +83,30 @@ def handle_received_screenshot(connection):
                 continue
             
             print(f"Received screenshot of size: {len(screenshot_data)}")
-            # Convert the received bytes to numpy array
-            frame = np.frombuffer(screenshot_data, dtype=np.uint8)
-            # Decode the image
-            frame = cv2.imdecode(frame, cv2.IMREAD_COLOR)
-            if frame is None:
-                print("Error decoding image")
-                continue
 
-            # Display the frame
-            cv2.imshow('Live', frame)
+            # Create a PIL image from the received data
+            image_stream = io.BytesIO(screenshot_data)
+            image_stream.seek(0)
+            img = Image.open(image_stream)
+            
+            # Resize the image if necessary
+            img = img.resize((640, 360))  # Adjust size as needed
 
-            # Wait for a short period to display the image
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+            # Convert PIL image to Tkinter PhotoImage
+            photo = ImageTk.PhotoImage(img)
+
+            # Update label with the new image
+            label.config(image=photo)
+            label.image = photo
+
+            root.update()
+
+        root.mainloop()
 
     except Exception as e:
         print(f"Error handling screenshot: {e}")
     finally:
         connection.close()
-        cv2.destroyAllWindows()
         print("Screenshot connection closed")
 
 # Define ports for each functionality
