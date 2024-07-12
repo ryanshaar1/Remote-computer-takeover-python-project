@@ -182,12 +182,13 @@ def main():
     screenshot_queue = queue.Queue()
 
     threading.Thread(target=handle_received_screenshot, args=(remote_screen_size, screenshot_queue), daemon=True).start()
-
+    screen_width, screen_height = get_screen_size()
     root = tk.Tk()
+
     root.title("Live Screen")
 
-    remote_screen_width, remote_screen_height = remote_screen_size
-    root.geometry(f"{remote_screen_width}x{remote_screen_height}")
+
+    root.geometry(f"{screen_width}x{screen_height}")
 
     label = tk.Label(root)
     label.pack()
