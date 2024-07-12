@@ -92,12 +92,38 @@ def send_screenshots(connection):
         connection.close()
         print("Screenshot connection closed")
 
+def send_screensize(connection):
+    try:
+        width, height = pyautogui.size()
+        screensize_msg = f"screen_size,{width},{height}"
+        send_msg(connection, screensize_msg)
+    except Exception as e:
+        print(f"Error sending screen size: {e}")
+    finally:
+        connection.close()
+        print("Screen size connection closed")
+
+def send_msg(sock, msg):
+    try:
+        msg = msg.encode('utf-8') if isinstance(msg, str) else msg
+        msg = struct.pack('>I', len(msg)) + msg
+        sock.sendall(msg)
+        print(f"Sent message: {msg}")
+    except Exception as e:
+        print(f"Error sending message: {e}")
+
 # Define ports for each functionality
+screensize_port = 5000
 keyboard_port = 5001
 mouse_port = 5002
 screenshot_port = 5003
 
 # Create socket listeners for each port
+
+screensize_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+screensize_sock.bind(("127.0.0.1", screensize_port))
+screensize_sock.listen(5)  
+
 keyboard_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 keyboard_sock.bind(("127.0.0.1", keyboard_port))
 keyboard_sock.listen(5)
@@ -115,6 +141,10 @@ print("Server started, waiting for connections...")
 try:
     while True:
         try:
+            screensize_connection, screensize_address = screensize_sock.accept()
+            print(f"Connection established with Screensize at {screensize_address}")
+            threading.Thread(target=send_screensize, args=(screensize_connection,)).start()
+
             keyboard_connection, keyboard_address = keyboard_sock.accept()
             print(f"Connection established with Keyboard at {keyboard_address}")
             threading.Thread(target=handle_received_keyboard, args=(keyboard_connection,)).start()
@@ -133,6 +163,7 @@ try:
 except KeyboardInterrupt:
     print("Shutting down server.")
 finally:
+    screensize_sock.close()
     keyboard_sock.close()
     mouse_sock.close()
     screenshot_sock.close()
